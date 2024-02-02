@@ -7,7 +7,7 @@ import numpy as np
 
 import nibabel as nib
 from scipy.ndimage import gaussian_filter
-from nilearn.image import resample_img
+from dipy.nn.utils import transform_img, recover_img
 
 from dipy.data import get_fnames
 from dipy.testing.decorators import doctest_skip_parser
@@ -182,7 +182,8 @@ class DeepN4:
         """
         # Preprocess input data (resample, normalize, and pad)
         new_voxel_size = [2, 2, 2]  
-        resampled_T1 = resample_img(input_file, target_affine=np.diag(new_voxel_size))
+        img = nib.load(input_file)
+        resampled_T1, affine2, ori_shape = transform_img(img.get_fdata(),img.affine)
         in_features, lx,lX,ly,lY,lz,lZ,rx,rX,ry,rY,rz,rZ, in_max = self.load_resample(resampled_T1)
 
         # Load the model 
@@ -199,11 +200,11 @@ class DeepN4:
         final_field = np.zeros([org_data.shape[0], org_data.shape[1], org_data.shape[2]])
         final_field[rx:rX,ry:rY,rz:rZ] = field[lx:lX,ly:lY,lz:lZ]
         final_fields = gaussian_filter(final_field, sigma=3)
-        ref = nib.load(input_file)
-        upsample_final_field = resample_img(nib.Nifti1Image(final_fields,resampled_T1.affine), target_affine=ref.affine, target_shape=ref.shape)
+        upsample_final_field recover_img(final_fields, affine2, ori_shape, np.shape(final_fields))
 
         # Correct the image
         upsample_data = upsample_final_field.get_fdata()
+        ref = nib.load(input_file)
         ref_data = ref.get_fdata()
         with np.errstate(divide='ignore', invalid='ignore'):
             final_corrected = np.where(upsample_data != 0, ref_data / upsample_data, 0)
