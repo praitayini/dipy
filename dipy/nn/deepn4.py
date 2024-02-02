@@ -5,9 +5,7 @@ Class and helper functions for fitting the DeepN4 model.
 import logging
 import numpy as np
 
-import torch
 import nibabel as nib
-from torch.autograd import Variable
 from scipy.ndimage import gaussian_filter
 from nilearn.image import resample_img
 
@@ -163,7 +161,7 @@ class DeepN4:
         input_vols = np.zeros((1,1, 128, 128, 128))
         input_vols[0,0,:,:,:] = input_data
 
-        return torch.from_numpy(input_vols).float(), lx,lX,ly,lY,lz,lZ,rx,rX,ry,rY,rz,rZ, in_max
+        return tf.convert_to_tensor(input_vols, dtype=tf.float32), lx,lX,ly,lY,lz,lZ,rx,rX,ry,rY,rz,rZ, in_max
 
     def predict(self, input_file):
         """ Wrapper function to facilitate prediction of larger dataset.
@@ -192,7 +190,7 @@ class DeepN4:
 
         # Run the model to get the bias field
         # logfield = model(input_1=Variable(in_features))
-        logfield = self.__predict(Variable(in_features))
+        logfield = self.__predict(in_features)
         field = np.exp(logfield['120'])
         field = field.squeeze()
 
