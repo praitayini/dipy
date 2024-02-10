@@ -319,6 +319,24 @@ fetch_synb0_test = _make_fetcher(
      '515544fbcafd9769785502821b47b661'],
     doc="Download Synb0 test data for Schilling et. al 2019")
 
+fetch_deepn4_weights = _make_fetcher(
+    "fetch_deepn4_weights",
+    pjoin(dipy_home, 'deepn4'),
+    'https://ndownloader.figshare.com/files/',
+    ['25201673'],
+    ['model_weights.h5'],
+    ['a9362c75bc28616167a11a42fe5d004e'],
+    doc="Download DeepN4 model weights for Kanakaraj et. al 2024")
+
+fetch_deepn4_test = _make_fetcher(
+    "fetch_deepn4_test",
+    pjoin(dipy_home, 'deepn4'),
+    'https://ndownloader.figshare.com/files/',
+    ['25076201'],
+    ['test_input.npz'],
+    ['987203aa73de2dac8770f39ed506dc0c'],
+    doc="Download DeepN4 test data for Kanakaraj et. al 2024")
+
 fetch_evac_weights = _make_fetcher(
     "fetch_evac_weights",
     pjoin(dipy_home, 'evac'),
@@ -903,6 +921,14 @@ def get_fnames(name='small_64D'):
         input_array = pjoin(folder, 'test_input_synb0.npz')
         target_array = pjoin(folder, 'test_output_synb0.npz')
         return input_array, target_array
+    if name == 'deepn4_default_weights':
+        _, folder = fetch_deepn4_weights()
+        w1 = pjoin(folder, 'model_weights.h5')
+        return w1
+    if name == 'deepn4_test_data':
+        files, folder = fetch_deepn4_test()
+        input_array = pjoin(folder, 'test_input.npz')
+        return input_array
     if name == 'evac_default_weights':
         files, folder = fetch_evac_weights()
         weight = pjoin(folder, 'evac_default_weights.h5')
