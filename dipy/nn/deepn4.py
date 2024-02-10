@@ -15,9 +15,13 @@ from dipy.utils.optpkg import optional_package
 from dipy.nn.utils import set_logger_level
 
 tf, have_tf, _ = optional_package('tensorflow', min_version='2.0.0')
-if have_tf:
+tfa, have_tfa, _ = optional_package('tensorflow_addons')
+if have_tf and have_tfa:
     from tensorflow.keras.models import Model
-    from tensorflow.keras.layers import Input, Dense, Add
+    from tensorflow.keras.layers import MaxPool3D, Conv3DTranspose
+    from tensorflow.keras.layers import Conv3D, LeakyReLU
+    from tensorflow.keras.layers import Concatenate, Layer
+    from tensorflow_addons.layers import InstanceNormalization
 else:
     logging.warning('This model requires Tensorflow.\
                     Please install these packages using \
@@ -28,6 +32,110 @@ else:
 
 logging.basicConfig()
 logger = logging.getLogger('histo_resdnn')
+
+
+class EncoderBlock(Layer):
+    def __init__(self, out_channels, kernel_size, strides, padding):
+        super(EncoderBlock, self).__init__()
+        self.conv3d = Conv3D(out_channels,
+                             kernel_size,
+                             strides=strides,
+                             padding=padding,
+                             use_bias=False)
+        self.instnorm = InstanceNormalization()
+        self.activation = LeakyReLU(0.01)
+
+    def call(self, input):
+        x = self.conv3d(input)
+        x = self.instnorm(x)
+        x = self.activation(x)
+
+        return x
+
+class DecoderBlock(Layer):
+    def __init__(self, out_channels, kernel_size, strides, padding):
+        super(DecoderBlock, self).__init__()
+        self.conv3d = Conv3DTranspose(out_channels,
+                                      kernel_size,
+                                      strides=strides,
+                                      padding=padding,
+                                      use_bias=False)
+        self.instnorm = InstanceNormalization()
+        self.activation = LeakyReLU(0.01)
+
+    def call(self, input):
+        x = self.conv3d(input)
+        x = self.instnorm(x)
+        x = self.activation(x)
+
+        return x
+
+def UNet3D(input_shape):
+    inputs = tf.keras.Input(input_shape)
+    # Encode
+    x = EncoderBlock(32, kernel_size=3,
+                     strides=1, padding='same')(inputs)
+    syn0 = EncoderBlock(64, kernel_size=3,
+                        strides=1, padding='same')(x)
+
+    x = MaxPool3D()(syn0)
+    x = EncoderBlock(64, kernel_size=3,
+                     strides=1, padding='same')(x)
+    syn1 = EncoderBlock(128, kernel_size=3,
+                        strides=1, padding='same')(x)
+
+    x = MaxPool3D()(syn1)
+    x = EncoderBlock(128, kernel_size=3,
+                     strides=1, padding='same')(x)
+    syn2 = EncoderBlock(256, kernel_size=3,
+                        strides=1, padding='same')(x)
+
+    x = MaxPool3D()(syn2)
+    x = EncoderBlock(256, kernel_size=3,
+                     strides=1, padding='same')(x)
+    x = EncoderBlock(512, kernel_size=3,
+                     strides=1, padding='same')(x)
+
+    # Last layer without relu
+    x = Conv3D(512, kernel_size=1,
+               strides=1, padding='same')(x)
+
+    x = DecoderBlock(512, kernel_size=2,
+                     strides=2, padding='valid')(x)
+
+    x = Concatenate()([x, syn2])
+
+    x = DecoderBlock(256, kernel_size=3,
+                     strides=1, padding='same')(x)
+    x = DecoderBlock(256, kernel_size=3,
+                     strides=1, padding='same')(x)
+    x = DecoderBlock(256, kernel_size=2,
+                     strides=2, padding='valid')(x)
+
+    x = Concatenate()([x, syn1])
+
+    x = DecoderBlock(128, kernel_size=3,
+                     strides=1, padding='same')(x)
+    x = DecoderBlock(128, kernel_size=3,
+                     strides=1, padding='same')(x)
+    x = DecoderBlock(128, kernel_size=2,
+                     strides=2, padding='valid')(x)
+
+    x = Concatenate()([x, syn0])
+
+    x = DecoderBlock(64, kernel_size=3,
+                     strides=1, padding='same')(x)
+    x = DecoderBlock(64, kernel_size=3,
+                     strides=1, padding='same')(x)
+
+    x = DecoderBlock(1, kernel_size=1,
+                     strides=1, padding='valid')(x)
+
+    # Last layer without relu
+    out = Conv3DTranspose(1, kernel_size=1,
+                          strides=1, padding='valid')(x)
+
+    return Model(inputs, out)
 
 class DeepN4:
     """
@@ -61,6 +169,15 @@ class DeepN4:
 
         if not have_tf:
             raise tf()
+        if not have_tfa:
+            raise tfa()
+        
+        log_level = 'INFO' if verbose else 'CRITICAL'
+        set_logger_level(log_level, logger)
+
+        # Synb0 network load
+
+        self.model = UNet3D(input_shape=(128, 128, 128, 1))
 
     def fetch_default_weights(self):
         r"""
@@ -86,14 +203,10 @@ class DeepN4:
             Path to the file containing the weights (hdf5, saved by tensorflow)
         """
         try:
-            # self.model = tf.saved_model.load(checkpoint_file)
-            # checkpoint_file = https://drive.google.com/drive/folders/1mdBsV0kHRRV_Alu1QJrTT7N0GGNJDuiu 
-            # folder checkpoint_epoch_264.pd
             self.model.load_weights(weights_path)
         except ValueError:
-            raise ValueError('Expected input for the provided model weights '
-                             'do not match the declared model ({})'
-                             .format(self.sh_size))
+            raise ValueError('Expected input for the provided model weights \
+                             do not match the declared model')
 
     def __predict(self, x_test):
         r"""
@@ -111,7 +224,7 @@ class DeepN4:
             Predicted bias field
         """
 
-        return self.model.predict(input_1=x_test)
+        return self.model.predict(x_test)
     
     def pad(self, img, sz):
 
@@ -158,12 +271,12 @@ class DeepN4:
         in_max = np.percentile(input_data[np.nonzero(input_data)], 99.99)
         input_data = self.normalize_img(input_data, in_max, 0, 1, 0)
         input_data = np.squeeze(input_data)
-        input_vols = np.zeros((1,1, 128, 128, 128))
+        input_vols = np.zeros((1, 1, 128, 128, 128))
         input_vols[0,0,:,:,:] = input_data
 
         return tf.convert_to_tensor(input_vols, dtype=tf.float32), lx,lX,ly,lY,lz,lZ,rx,rX,ry,rY,rz,rZ, in_max
 
-    def predict(self, input_file):
+    def predict(self, img):
         """ Wrapper function to facilitate prediction of larger dataset.
         The function will mask, normalize, split, predict and 're-assemble'
         the data as a volume.
@@ -181,16 +294,10 @@ class DeepN4:
 
         """
         # Preprocess input data (resample, normalize, and pad)
-        new_voxel_size = [2, 2, 2]  
-        img = nib.load(input_file)
-        resampled_T1, affine2, ori_shape = transform_img(img.get_fdata(),img.affine)
+        resampled_T1, affine2, ori_shape = transform_img(img,img.affine)
         in_features, lx,lX,ly,lY,lz,lZ,rx,rX,ry,rY,rz,rZ, in_max = self.load_resample(resampled_T1)
 
-        # Load the model 
-        # model = tf.saved_model.load(checkpoint_file)
-
         # Run the model to get the bias field
-        # logfield = model(input_1=Variable(in_features))
         logfield = self.__predict(in_features)
         field = np.exp(logfield['120'])
         field = field.squeeze()
@@ -200,14 +307,12 @@ class DeepN4:
         final_field = np.zeros([org_data.shape[0], org_data.shape[1], org_data.shape[2]])
         final_field[rx:rX,ry:rY,rz:rZ] = field[lx:lX,ly:lY,lz:lZ]
         final_fields = gaussian_filter(final_field, sigma=3)
-        upsample_final_field recover_img(final_fields, affine2, ori_shape, np.shape(final_fields))
+        upsample_final_field = recover_img(final_fields, affine2, ori_shape, np.shape(final_fields))
 
         # Correct the image
         upsample_data = upsample_final_field.get_fdata()
-        ref = nib.load(input_file)
-        ref_data = ref.get_fdata()
         with np.errstate(divide='ignore', invalid='ignore'):
-            final_corrected = np.where(upsample_data != 0, ref_data / upsample_data, 0)
+            final_corrected = np.where(upsample_data != 0, img / upsample_data, 0)
 
         return final_corrected
 
