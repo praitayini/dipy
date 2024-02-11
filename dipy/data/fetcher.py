@@ -332,9 +332,11 @@ fetch_deepn4_test = _make_fetcher(
     "fetch_deepn4_test",
     pjoin(dipy_home, 'deepn4'),
     'https://ndownloader.figshare.com/files/',
-    ['25076201'],
-    ['test_input.npz'],
-    ['987203aa73de2dac8770f39ed506dc0c'],
+    ['25076201','25076201'],
+    ['test_input.npz',
+     'test_output.npz'],
+    ['987203aa73de2dac8770f39ed506dc0c',
+     '987203aa73de2dac8770f39ed506dc0c'],
     doc="Download DeepN4 test data for Kanakaraj et. al 2024")
 
 fetch_evac_weights = _make_fetcher(
@@ -928,7 +930,8 @@ def get_fnames(name='small_64D'):
     if name == 'deepn4_test_data':
         files, folder = fetch_deepn4_test()
         input_array = pjoin(folder, 'test_input.npz')
-        return input_array
+        target_array = pjoin(folder, 'test_output.npz')
+        return input_array, target_array
     if name == 'evac_default_weights':
         files, folder = fetch_evac_weights()
         weight = pjoin(folder, 'evac_default_weights.h5')
