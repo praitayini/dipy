@@ -323,7 +323,7 @@ fetch_deepn4_weights = _make_fetcher(
     "fetch_deepn4_weights",
     pjoin(dipy_home, 'deepn4'),
     'https://ndownloader.figshare.com/files/',
-    ['25201673'],
+    ['44498798'],
     ['model_weights.h5'],
     ['a9362c75bc28616167a11a42fe5d004e'],
     doc="Download DeepN4 model weights for Kanakaraj et. al 2024")
@@ -332,9 +332,9 @@ fetch_deepn4_test = _make_fetcher(
     "fetch_deepn4_test",
     pjoin(dipy_home, 'deepn4'),
     'https://ndownloader.figshare.com/files/',
-    ['25076201','25076201'],
-    ['test_input.npz',
-     'test_output.npz'],
+    ['44602303','44602306'],
+    ['test_input_deepn4.npz',
+     'test_output_deepn4.npz'],
     ['987203aa73de2dac8770f39ed506dc0c',
      '987203aa73de2dac8770f39ed506dc0c'],
     doc="Download DeepN4 test data for Kanakaraj et. al 2024")
