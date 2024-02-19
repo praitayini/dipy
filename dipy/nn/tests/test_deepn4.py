@@ -16,8 +16,8 @@ if have_tf and have_tfa:
                                                           , TensorFlow_addons')
 def test_default_weights():
     file_names = get_fnames('deepn4_test_data')
-    input_arr = np.load(file_names[0])['t1']
-    target_arr = np.load(file_names[1])['corr_t1']
+    input_arr = np.load(file_names[0])
+    target_arr = np.load(file_names[1])
 
     deepn4_model = DeepN4()
     deepn4_model.fetch_default_weights(0)
@@ -28,10 +28,10 @@ def test_default_weights():
 @pytest.mark.skipif(not all([have_tf, have_tfa]), reason='Requires TensorFlow \
                                                           , TensorFlow_addons')
 def test_default_weights_batch():
-    file_names = get_fnames('synb0_test_data')
-    input_arr = np.load(file_names[0])['t1']
-    target_arr = np.load(file_names[1])['corr_t1']
-    synb0_model = DeepN4()
-    synb0_model.fetch_default_weights(0)
-    results_arr = synb0_model.predict(input_arr)
+    file_names = get_fnames('deepn4_test_data')
+    input_arr = np.load(file_names[0])
+    target_arr = np.load(file_names[1])
+    deepn4_model = DeepN4()
+    deepn4_model.fetch_default_weights(0)
+    results_arr = deepn4_model.predict(input_arr)
     assert_almost_equal(results_arr, target_arr, decimal=1)
