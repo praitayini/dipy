@@ -929,8 +929,8 @@ def get_fnames(name='small_64D'):
         return w1
     if name == 'deepn4_test_data':
         files, folder = fetch_deepn4_test()
-        input_array = pjoin(folder, 'test_input.npz')
-        target_array = pjoin(folder, 'test_output.npz')
+        input_array = pjoin(folder, 'test_input_deepn4.npz')
+        target_array = pjoin(folder, 'test_output_deepn4.npz')
         return input_array, target_array
     if name == 'evac_default_weights':
         files, folder = fetch_evac_weights()
